@@ -11,6 +11,7 @@
 * [Java子类重写(覆盖)父类的方法必须满足的条件(搬运)](#10)
 * [String类型赋值问题](#11)
 * [Java代码块和静态代码块加载顺序](#12)
+* [为什么在局部内部类中使用外部类方法的局部变量要加 final 呢](#13)
 * [杂记](#-1)
 ---
 
@@ -653,6 +654,37 @@ person 无参构造
 ```
 
 **所以**，静态代码块和其他静态资源在类加载时按代码顺序加载，非静态代码块和其他非静态资源在实例化时按代码顺序加载。
+
+---
+
+# <h4 id="13">为什么在局部内部类中使用外部类方法的局部变量要加 final 呢[⬆(返回目录)](#0)</h4>
+
+```java
+public class TestInner {
+	public static void main(String[] args) {
+		A obj = Outer.method();
+		// 因为如果c不是final的，那么method方法执行完，method的栈空间就释放了，那么c也就消失了
+		obj.a(); // 这里打印c就没有中可取了，所以把c声明为常量，存储在方法区中
+	}
+}
+
+interface A {
+	void a();
+}
+
+class Outer {
+	public static A method() {
+		final int c = 3;
+		class Sub implements A {
+			@Override
+			public void a() {
+				System.out.println("method.c = " + c);
+			}
+		}
+		return new Sub();
+	}
+}
+```
 
 ---
 
