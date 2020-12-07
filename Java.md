@@ -848,7 +848,7 @@ Father func
 Person:getNumber()
 ```
 
-主要关注`private int a = super.getNumber();`这段代码，这里的`super.getNumber()`调用的是`Person`类的`getNumber()`方法，而不是运行时的实例的类型的父类（即`Father`类）的方法；类似的，`Father`类的`func()`方法中的`super.getNumber();`，虽然运行时对象实例的类型是`Son`类型，但是这里调用的也是`Person`中的`getNumber()`方法，而不是`Father`类中的。但是，`this`调用的都是运行时对象实例（即`Son`类的实例）中的方法。
+主要关注`private int a = super.getNumber();`这段代码，这里的`super.getNumber()`调用的是`Person`类的`getNumber()`方法，而不是运行时的实例的类型的父类（即`Father`类）的方法；类似的，`Father`类的`func()`方法中的`super.getNumber();`，虽然运行时对象实例的类型是`Son`类型，但是这里调用的也是`Person`中的`getNumber()`方法，而不是`Father`类中的。但是，`this`调用的都是运行时对象实例（即`Son`类的实例）中的方法。而且注意到这里对`this`和`super`调用`hashCode()`方法，返回值是相同的，验证了 **`this`是一个指向本对象的指针, 然而`super`是一个 Java 关键字**，相当于都在获取当前`Son`类型实例对象的哈希值。
 
 所以，`this`永远指向当前运行时的实例对象，而`super`则是以当前代码所在类的空间为基准去找父类。见下图：
 
