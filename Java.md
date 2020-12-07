@@ -852,7 +852,10 @@ Person:getNumber()
 
 所以，`this`永远指向当前运行时的实例对象，而`super`则是以当前代码所在类的空间为基准去找父类。见下图：
 
-![super作用空间](imgs/super作用空间.png)
+![super作用空间](https://github.com/NicetomEetU2/notes/blob/main/imgs/super%E4%BD%9C%E7%94%A8%E7%A9%BA%E9%97%B4.png)
+
+
+<img src="./imgs/super作用空间.png" />
 
 再看下面这个程序，先自己想一下输出是什么：
 
