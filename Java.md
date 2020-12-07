@@ -12,7 +12,8 @@
 * [String类型赋值问题](#11)
 * [Java代码块和静态代码块加载顺序](#12)
 * [为什么在局部内部类中使用外部类方法的局部变量要加 final 呢](#13)
-* [try(catch)块中的return语句和finally块中的语句执行顺序](#14)
+* [📌try(catch)块中的return语句和finally块中的语句执行顺序](#14)
+* [📌this与super以及两者在内部类中的使用](#15)
 * [杂记](#-1)
 ---
 
@@ -695,7 +696,7 @@ JDK1.8之后，如果某个局部变量在局部内部类中被使用了，自�
 
 ---
 
-# <h4 id="14">try(catch)块中的return语句和finally块中的语句执行顺序[⬆(返回目录)](#0)</h4>
+# <h4 id="14">📌try(catch)块中的return语句和finally块中的语句执行顺序[⬆(返回目录)](#0)</h4>
 
 看下面这段程序：（[参考资料](https://blog.csdn.net/sinat_22594643/article/details/80509266)）
 
@@ -758,6 +759,182 @@ public class Test {
     可以看到，在第一步执行完毕后，整个方法的返回值就已经确定了，由于还要执行```finally```代码块，因此程序会**将返回值暂存在局部变量区**，腾出操作数栈用来执行```finally```语句块中代码，等```finally```执行完毕，再将暂存的返回值又复制回操作数栈顶。所以无论```finally```语句块中执行了什么操作，都无法影响返回值，所以试图在```finally```语句块中修改返回值是徒劳的。因此，```finally```语句块设计出来的**目的只是为了让方法执行一些重要的收尾工作（释放/关闭资源）**，而不是用来计算返回值的。
 
     所以在```finally```中更改返回值是无效的，因为它只是**更改了操作数栈顶端复制到局部变量区的快照，并不能真正的更改返回值**，但是如果在```finally```中使用```return```的话则是会将新的操作数栈的顶端数据返回，而不是之前复制到局部变量区用作返回内容快照的值返回，所以这样是可以返回的，同样的在```catch```语句块里也是这样，只有重新出现了```return```才有可能更改返回值。
+
+---
+
+# <h4 id="15">📌this与super以及两者在内部类中的使用[⬆(返回目录)](#0)</h4>
+
+[**```super```和```this```的异同**](https://www.runoob.com/w3cnote/the-different-this-super.html)：
+
+- super(参数)：调用基类中的某一个构造函数（应该为构造函数中的第一条语句）
+- this(参数)：调用本类中另一种形成的构造函数（应该为构造函数中的第一条语句）
+- super:　它引用当前对象的直接父类中的成员（用来访问直接父类中被隐藏的父类中成员数据或函数，基类与派生类中有相同成员定义时如：super.变量名 super.成员函数据名（实参） this：它代表当前对象名（在程序中易产生二义性之处，应使用 this 来指明当前对象；如果函数的形参与类中的成员数据同名，这时需用 this 来指明成员变量名）
+- 调用super()必须写在子类构造方法的第一行，否则编译不通过。每个子类构造方法的第一条语句，都是隐含地调用 super()，如果父类没有这种形式的构造函数，那么在编译的时候就会报错。
+- super() 和 this() 类似,区别是，super() 从子类中调用父类的构造方法，this() 在同一类内调用其它方法。
+- super() 和 this() 均需放在构造方法内第一行。
+- 尽管可以用this调用一个构造器，但却不能调用两个。
+- this 和 super 不能同时出现在一个构造函数里面，因为this必然会调用其它的构造函数，其它的构造函数必然也会有 super 语句的存在，所以在同一个构造函数里面有相同的语句，就失去了语句的意义，编译器也不会通过。
+- this() 和 super() 都指的是对象，所以，均不可以在 static 环境中使用。包括：static 变量,static 方法，static 语句块。
+- 从本质上讲，**`this`是一个指向本对象的指针, 然而`super`是一个 Java 关键字**。
+
+先看下面这个程序，先自己想一下输出是什么：
+
+```java
+public class Test{
+    public static void main(String[] args){
+        Son s = new Son();
+        s.func();
+    }
+}
+
+class Person {
+    Person() {
+        System.out.println("Person Constructor");
+    }
+    public int getNumber(){
+        System.out.println("Person:getNumber()");
+        return 1;
+    }
+}
+
+class Father extends Person {
+    private int a = super.getNumber();
+    Father() {
+        System.out.println("Father Constructor");
+        a =this.getNumber();
+        func();
+    }
+    {
+        System.out.println(this.hashCode());
+        System.out.println(super.hashCode());
+    }
+    private int b = getNumber();
+    public void func() {
+        System.out.println("Father func");
+        super.getNumber();
+    }
+    public int getNumber(){
+        System.out.println("Father:getNumber()");
+        return 1;
+    }
+}
+class Son extends Father{
+    private int a = super.getNumber();
+    Son() {
+        System.out.println("Son Constructor");
+    }
+    public int getNumber(){
+        System.out.println("Son:getNumber()");
+        return 1;
+    }
+}
+```
+
+输出如下：
+
+```
+Person Constructor
+Person:getNumber()
+1836019240
+1836019240
+Son:getNumber()
+Father Constructor
+Son:getNumber()
+Father func
+Person:getNumber()
+Father:getNumber()
+Son Constructor
+Father func
+Person:getNumber()
+```
+
+主要关注`private int a = super.getNumber();`这段代码，这里的`super.getNumber()`调用的是`Person`类的`getNumber()`方法，而不是运行时的实例的类型的父类（即`Father`类）的方法；类似的，`Father`类的`func()`方法中的`super.getNumber();`，虽然运行时对象实例的类型是`Son`类型，但是这里调用的也是`Person`中的`getNumber()`方法，而不是`Father`类中的。但是，`this`调用的都是运行时对象实例（即`Son`类的实例）中的方法。
+
+所以，`this`永远指向当前运行时的实例对象，而`super`则是以当前代码所在类的空间为基准去找父类。见下图：
+
+![super作用空间](imgs/super作用空间.png)
+
+再看下面这个程序，先自己想一下输出是什么：
+
+```java
+public class SubClass extends SuperClass {
+
+    public static void main(String[] args) throws Exception {
+        SuperClass s = new SubClass();
+//        SubClass s = new SubClass();
+        s.show();
+    }
+
+    SubClass() throws Exception {
+        System.out.println("SubClass constructor -> " + super.getClass().getName());
+    }
+
+    @Override
+    void show() {
+        super.show();
+        System.out.println("SubClass show -> " + super.getClass().getName());
+    }
+
+    @Override
+    void show2() {
+        System.out.println("SubClass show2 -> " + super.getClass().getSuperclass().getName());
+    }
+}
+
+class SuperClass {
+
+    SuperClass() throws Exception {
+        System.out.println("SuperClass constructor -> " + this.getClass().getName());
+    }
+
+    void show() {
+        System.out.println("SuperClass show -> " + super.getClass().getName());
+        show2();
+    }
+    
+    void show2() {
+        System.out.println("SuperClass show2");
+    }
+}
+```
+
+输出如下：
+
+```
+SuperClass constructor -> com.atguigu.mytest.SubClass
+SubClass constructor -> com.atguigu.mytest.SubClass
+SuperClass show -> com.atguigu.mytest.SubClass
+SubClass show2 -> com.atguigu.mytest.SuperClass
+SubClass show -> com.atguigu.mytest.SubClass
+```
+
+发现，`super.getClass().getName()`打印的是`SubClass`，这里其实是因为`Object`类下的`getClass()`方法的返回值返回的是**运行时实例对象的具体类型**。所以，这里`super`关键字虽然指向父类，但是此时实际的实例对象还是`SubClass`类型的实例，所以会打印`SubClass`。
+
+```java
+// Object.java
+...
+/**
+ * Returns the runtime class of this {@code Object}. The returned
+ * {@code Class} object is the object that is locked by {@code
+ * static synchronized} methods of the represented class.
+ *
+ * <p><b>The actual result type is {@code Class<? extends |X|>}
+ * where {@code |X|} is the erasure of the static type of the
+ * expression on which {@code getClass} is called.</b> For
+ * example, no cast is required in this code fragment:</p>
+ *
+ * <p>
+ * {@code Number n = 0;                             }<br>
+ * {@code Class<? extends Number> c = n.getClass(); }
+ * </p>
+ *
+ * @return The {@code Class} object that represents the runtime
+ *         class of this object.
+ * @jls 15.8.2 Class Literals
+ */
+public final native Class<?> getClass();
+...
+```
 
 ---
 
