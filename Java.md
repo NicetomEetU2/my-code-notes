@@ -14,6 +14,7 @@
 * [为什么在局部内部类中使用外部类方法的局部变量要加 final 呢](#13)
 * [📌try(catch)块中的return语句和finally块中的语句执行顺序](#14)
 * [📌this与super以及两者在内部类中的使用](#15)
+* [📌构造器内部的多态方法和行为](#16)
 * [杂记](#-1)
 ---
 
@@ -934,6 +935,150 @@ SubClass show -> com.atguigu.mytest.SubClass
  */
 public final native Class<?> getClass();
 ...
+```
+
+---
+
+# <h4 id="16">📌构造器内部的多态方法和行为[⬆(返回目录)](#0)</h4>
+
+构造器调用的层次带来了一个有趣的两难问题。如果一个构造器的内部调用正在构造的对象的某个动态绑定方法，那会发什么什么呢？
+
+在一般的方法内部，动态绑定的调用是在运行时才决定的，因为对象无法知道它是属于方法所在的那个类，还是属于那个导出类。
+
+如果要调用构造器内部的一个动态绑定方法，就要用到那个方法的被覆盖后的定义。然而，这个调用的效果可能相当难于预料，因为被覆盖的方法在对象被完全构造之前就会被调用。这可能会造成一些难于发现的隐藏错误。
+
+从概念上讲，构造器的工作实际上是创建对象（这并非是一件平常的工作）。在任何构造器内部，整个对象可能只是部分形成——我们只知道基类对象已经进行初始化。如果构造器只是在构建对象过程中的一个步骤，并且该对象所属的类是从这个构造器所属的类导出的，那么导出部分在当前构造器正在被调用的时刻仍旧是没有被初始化的。然而，一个动态绑定的方法调用却会向外深入到继承层次结构内部，它可以调用导出类里的方法。如果我们是在构造器内部这样做，那么就可能会调用某个方法，而这个方法所操纵的成员可能还未进行初始化——这肯定会招致灾难。
+
+通过下面这个例子，我们会看到问题所在：
+
+```java
+// Constructors and polymorphism
+// don't produce what you might expect
+import static net.mindview.util.Print.*;
+
+class Glyph {
+    void draw() { print("Glyph.draw()"); }
+    Glyph() {
+        print("Glyph() before draw()");
+        draw();
+        print("Glyph() after draw()");
+    }
+}
+
+class RoundGlyph extends Glyph {
+    private int radius = 1;
+    RoundGlyph(int r) {
+        radius = r;
+        print("RoundGlyph.RoundGlyph(). radius = " + radius);
+    }
+    void draw() {
+        print("RoundGlyph.draw(). radius = " + radius);
+    }
+}
+
+public class PolyConstructors {
+    public static void main(String[] args) {
+        new RoundGlyph(5);
+    }
+}
+
+/*
+Output:
+Glyph() before draw()
+RoundGlyph.draw(). radius = 0
+Glyph() after draw()
+RoundGlyph.draw(). radius = 5
+*/
+```
+
+`Glyph.draw()`方法设计为将要被覆盖，这种覆盖是在`RoundGlyph`中发生的。但是`Glyph`构造器会调用这个方法，结果导致了对`RoundGlyph.draw()`的调用，这看起来似乎是我们的目的。但是如果看到输出结果，我们会发现当`Glyph`的构造器调用`draw()`方法时，`radius`不是默认初始值 1，而是 0。这可能导致在屏幕上只画了一个点，或者根本什么东西都没有；我们只能干瞪眼，并试图找出程序无法运转的原因所在。
+
+初始化的实际过程是：
+1. 在其他任何事物发生之前，将分配给对象的存储空间初始化成二进制的零。
+2. 如前所述那样调用基类构造器。此时，调用被覆盖后的`draw()`方法（要在调用`RoundGlyph`构造器之前调用），由于步骤1的缘故，我们此时会发现`radius`的值为 0。
+3. 按照声明的顺序调用成员的初始化方法。
+4. 调用导出类的构造器主体。
+
+这样做有一个优点，那就是所有东西都至少初始化成零（或者是某些特殊数据类型中与“零”等价的值），而不是仅仅留作垃圾。其中包括通过“组合”而嵌入一个类内部的对象引用，其值是`null`。所以如果忘记为该引用进行初始化，就会在运行时出现异常。查看输出结果时，会发现其他所有东西的值都会是零，这通常也正是发现问题的证据。
+
+另一方面，我们应该对这个程序的结果相当震惊。在逻辑方面，我们做的已经十分完美，而它的行为却不可思议地错了，并且编译器也没有报错。（在这种情况下，C++语言会产生更合理的行为。）诸如此类的错误会很容易被人忽略，而且要花很长的时间才能发现。
+
+因此，编写构造器时有一条有效的准则：**“用尽可能简单的方法使对象进入正常状态；如果可以的话，避免调用其他方法”**。在构造器内唯一能够安全调用的那些方法是**基类中的`final`方法（也适用于`private`方法，他们自动属于`final`方法）**。这些方法不能被覆盖，因此也就不会出现上述令人惊讶的问题。你可能无法总是能够遵循这条准则，但是应该朝着它努力。(Java编程思想 162-164)
+
+类似例子如下：
+
+例子1
+
+```java
+class Test3{
+    public static void main(String[] args){
+        new Sub().test();
+        // output: Parent无参构造  Sub无参构造 Rose Jack
+        System.out.println("--------------------------------");
+        new Sub("John").test();
+        // output: Parent有参构造 Sub有参构造 John Jack
+    }
+}
+class Parent{
+    String name = "Rose";// john
+    public Parent(){
+        System.out.println("Parent无参构造");
+    }
+    public Parent(String name){
+        this.name = name;
+        System.out.println("Parent有参构造");
+    }
+}
+class Sub extends Parent{
+    String name="Jack";
+    public Sub(){
+        System.out.println("Sub无参构造");
+    }
+    public Sub(String s){
+        super(s);
+        System.out.println("Sub有参构造");
+    }
+    public void test(){
+        System.out.println(super.name);
+        System.out.println(this.name);
+    }
+}
+```
+
+例子2
+
+```java
+public class TestInner{
+    public static void main(String[] args){
+        Outer.Inner in = new Sub();
+        in.method();
+    }
+}
+class Outer {
+    Outer() {
+        System.out.println("outer constructor");
+    }
+    abstract class Inner{
+        abstract void method();
+    }
+}
+class Sub extends Outer.Inner{
+    // 这里static是因为Inner依赖于Outer的实例对象，同时Sub又继承自Inner
+    // 所以要保证类加载时(构造器执行之前)就要有Outer实例对象
+    static Outer out = new Outer();
+    Sub(){
+        // 这里out.super()是在调用Inner的无参构造器，因为Inner依赖于
+        // Outer实例对象，所以要用实例对象out来调用Inner的无参构造器
+        out.super();
+    }
+    @Override
+    void method() {
+        System.out.println("hello inner");
+    }
+}
+/* output:
+outer constructor
+hello inner */
 ```
 
 ---
