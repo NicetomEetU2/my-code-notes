@@ -519,35 +519,63 @@ public class Singleton {
 
 # <h4 id="11">String类型赋值问题[⬆(返回目录)](#0)</h4>
 
-先看一下```String```类型的源码：
+`String`类特点：
+1. 字符串`String`类型本身是`final`声明的，意味着我们不能继承`String`
+2. 字符串的对象也是**不可变对象**，意味着一旦进行修改，就会产生**新对象**，因为`String`类中存储数据采用的是`private final char value[];`，**所有对字符串的操作(拼接，截取，赋值...)都是先创建一个新的字符串对象，然后再把新对象的引用赋给老对象，保证了字符串对象的不可变性**(反射除外，*反射先挖个坑*)
+3. `String`对象内部是用字符数组进行保存的
+4. 就因为字符串对象设计为不可变，那么所以字符串有**常量池**来保存很多常量对象
+
+`String`的拼接操作：
+1. 用'+'拼接  变量+变量  结果在**堆内存**
+2. 用'+'拼接  变量+常量、常量+变量  结果也在**堆内存**
+3. 用'+'拼接  常量+常量  结果在**常量池**
+4. 用`concat`方法拼接，无论是常量还是变量都在**堆内存**
+
+拼接操作示例代码：
+
+```java
+    String str1 = "shangguigu"; // str1是从常量池中拿的地址
+    String str2 = "shang";
+    final String str3 = "guigu"; // final声明后变为常量
+    String str4 = str2 + str3; // str4的地址是堆内存的地址
+    String str5 = "shang" + "guigu"; // str5是从常量池中拿的地址
+    String str6 = "shang" + str3; // str6的地址是从常量池中拿的地址
+    System.out.println(str1 == str4); // false
+    System.out.println(str1 == str5); // true
+    System.out.println(str1 == str6); // true
+```
+
+看一下`String`类型的源码：
 
 ```java
 ...
 public final class String
     implements java.io.Serializable, Comparable<String>, CharSequence {
     /** The value is used for character storage. */
+    // 在JDK1.9中，String的value被设计成byte[]，不再是char[]了
+    // 这个是JDK1.8的源码
     private final char value[];
     ...
 }
 ```
 
-发现其中有个```final```修饰的```char```类型数组```value```，而且这个数组存有```String```类型变量的值（切分为多个字符存入这个字符数组），但是考虑如下赋值语句：
+发现其中有个`final`修饰的`char`类型数组`value`，而且这个数组存有`String`类型变量的值（切分为多个字符存入这个字符数组），但是考虑如下赋值语句：
 
 ```java
 String str = "aaa";
 str = "bbb";
 ```
 
-有没有感觉到有什么不对，是的，好像```final```修饰的```value```数组值被改变了，那好像也没什么不对。那再考虑下面代码：
+有没有感觉到有什么不对，是的，好像`final`修饰的`value`数组值被改变了，那好像也没什么不对。那再考虑下面代码：
 
 ```java
 String str = "aaa";
 str = "bbbbb";
 ```
 
-好像又不对了，这里```final```修饰的```value```是个静态数组啊，在内存中应该是连续存储的啊，这里数组长度应该被改变了，就算是做了扩容操作，也应该要重新申请一个连续的地址空间重新赋给```value```啊，那不相当于修改了```final```修饰的引用类型变量的地址了嘛。
+好像又不对了，这里`final`修饰的`value`是个静态数组啊，在内存中应该是连续存储的啊，这里数组长度应该被改变了，就算是做了扩容操作，也应该要重新申请一个连续的地址空间重新赋给`value`啊，那不相当于修改了`final`修饰的引用类型变量的地址了嘛。
 
-是的，这里不仅仅改变了```value```的地址，连```str```其实都已经不是之前的```str```了，实际上，这里恰好体现了```String```是一个引用类型的事实，```str = "bbbbb";```首先从常量池寻找是否存在```"bbbbb"```，如果没有就创建一个，然后返回一个```String```类型对象的副本，然后再把这个副本赋值给```str```。这个看着很像基本数据类型的赋值语句，实则是非常典型的引用类型的赋值语句。所以，用```final```修饰的```String```类型变量因无法修改其指向的地址，所以就无法修改。
+是的，这里不仅仅改变了`value`的地址，连`str`其实都已经不是之前的`str`了，实际上，这里恰好体现了`String`是一个引用类型的事实，`str = "bbbbb";`首先从常量池寻找是否存在`"bbbbb"`，如果没有就创建一个，然后返回一个`String`类型对象的副本，然后再把这个副本赋值给`str`。这个看着很像基本数据类型的赋值语句，实则是非常典型的引用类型的赋值语句。所以，用`final`修饰的`String`类型变量因无法修改其指向的地址，所以就无法修改。
 
 ```java
 final String str = "aaa";
@@ -555,7 +583,7 @@ str = "bbbbb";
 // error: Cannot assign a value to final variable 'str'
 ```
 
-**但是**，当使用```String```类型有参构造器创建对象时，会和其他引用类型创建实例对象一样，会把值保存在堆空间中，而不是常量池。代码如下：
+**但是**，当使用`String`类型有参构造器创建对象时，会和其他引用类型创建实例对象一样，会把值保存在堆空间中，而不是常量池。代码如下：
 
 ```java
 String str = "aaa";
