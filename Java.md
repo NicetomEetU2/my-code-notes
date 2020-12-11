@@ -1189,3 +1189,4 @@ hello inner */
 - `String`类型重写了`+`操作符，使用`StringBuilder`类进行拼接操作。
 - `ArrayList`类在`new`的时候不开辟空间，在第一次添加数据的时候才开辟10个空间，`ArrayList`是线程不安全的，效率较高；`Vector`类在`new`的时候就已经开辟了10个空间，`Vector`是线程安全的，效率较低。
 - `List<E>`有序指的是**元素添加顺序**；`Set<E>`无序指的也是**元素添加顺序**；`HashSet<E>`数据顺序有序（根据hashCode值排序）及`TreeSet<E>`数据顺序有序指的是**数据顺序**；`linkedHashSet<E>`有序指的是**元素添加顺序**，而**数据顺序**无序（不明白这个的名字里为啥带个Hash...链式结构怎么搞哈希算法嘛...感觉这个东西应该设计为继承自`LinkedList<E>`更好一些...）
+- 不要在使用`Iterator`迭代器进行迭代时，调用`Collection`的`remove(xx)`方法，否则会报异常`java.util.ConcurrentModificationException`，或出现不确定行为。要使用`Iterator`的`remove()`方法去删，（以`ArrayList`为例）因为`ArrayList`中有个`modCount`属性记录数据的版本信息，`ArrayList`的内部类`Itr`的`next()`方法首先会调用`checkForComodification()`方法比对数据版本是否匹配。而`Iterator`的`remove()`方法会更新版本信息，但是`ArrayList`的`remove()`方法不会更新版本信息，导致出错。
