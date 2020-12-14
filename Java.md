@@ -16,6 +16,7 @@
 * [📌this与super以及两者在内部类中的使用](#15)
 * [📌构造器内部的多态方法和行为](#16)
 * [Java包装类一些注意的点](#17)
+* [📌泛型相关](#18)
 * [杂记](#-1)
 ---
 
@@ -1173,6 +1174,538 @@ hello inner */
     | double | Double | 无 |
 
 ---
+
+# <h4 id="18">📌泛型相关[⬆(返回目录)](#0)</h4>
+
+开始看书上讲的泛型，有点似懂非懂，听完课回来又看看，发现这鬼东西门道好多，想整理一下，又不知从何下手...就记一些我懂了一点的东西吧
+
+> **不深究的话只看 3、5、6 就够了**
+
+### 1. 为什么要使用泛型
+
+泛型类和泛型方法有类型参数，这使得它们可以准确地描述特定类型实例化时会发生什么。在有泛型之前，程序员必须使用`Object`编写适用于多种类型的代码。这很繁琐，也很不安全。
+
+随着泛型的引入，Java 有了一个表述能力很强的类型系统，允许设计者详细地描述变量和方法的类型要如何变化。对于简单的情况，你会发现实现泛型代码很容易。不过，在更高级的情况下，对于实现者来说这会相当复杂。其目标是提供让其他程序员可以轻松使用的类和方法而不会出现意外。
+
+Java 5 中泛型的引入从成为 Java 自最初发行以来最显著的变化。Java 的一个主要设计目标是支持与之前版本的兼容性（导致了 Java 中存在大量“陪跑类”，不过为了兼容性也无可奈何）。因此，Java 的泛型有一些让人不快的局限性。（*Java Core Ⅰ*）
+
+在没有泛型之前，从集合中读取到的每一个对象都必须进行转换。如果有人不小心插入了类型错误的对象，在运行时的转换处理就会出错。有了泛型之后，你可以告诉编译器每个集合中接受哪些对象类型。编译器自动为你的插入进行转换，并在**编译时**告知是否插入了类型错误的对象。这样可以使程序更加安全，也更加清楚。
+
+### 2. 泛型中的术语
+
+| 术 语 | 范 例 |
+| :---: | :---: |
+| 参数化的类型 | `List<Sring>` |
+| 实际类型参数 | `String` |
+| 泛型 | `List<E>` |
+| 形式类型参数 | `E` |
+| 无限制通配符类型 | `List<?>` |
+| 原生态类型 | `List` |
+| 有限制类型参数 | `<E extends Number>` |
+| 递归类型限制 | `<T extends Comparable<T>>` |
+| 有限制通配符类型 | `List<? extends Number>` |
+| 泛型方法 | `static <E> List<E> asList(E[] a)` |
+| 类型令牌 | `String.class` |
+
+### 3. 万恶之源——类型擦除
+
+#### 3.1 类型擦除
+
+无论何时定义一个泛型类型，都会自动提供一个相应的**原始类型**（*raw type*）。这个原始类型的名字就是去掉类型参数后的泛型类型名。类型变量会被**擦除**（*erased*），并替换为其**限定类型**（或者，对于无限定的变量则替换为`Object`）。
+
+例如，`Pair<T>`的原始类型如下所示：
+
+```java
+public class Pair {
+    private Object first;
+    private Object second;
+
+    public Pair(Object first, Object second) {
+        this.first = first;
+        this.second = second;
+    }
+
+    public Object getFirst() { return first; }
+    public Object getSecond() { return second; }
+
+    public void setFirst(Object newValue) { first = newValue; }
+    public void setSecond(Object newValue) { second = newValue; }
+}
+```
+
+因为`T`是一个无限定的变量，所以直接用`Object`替换。
+
+结果是一个普通的类，就好像 Java 语言中引入泛型之前实现的类一样。
+
+在程序中可以包含不同类型的`Pair`，例如，`Pair<String>`或`Pair<LocalDate>`。不过擦除类型后，它们都会变成原始的`Pair`类型。
+
+原始类型用**第一个**限定来替换类型变量，或者，如果没有给定限定，就替换为`Object`。例如，类`Pair<T>`中的类型变量没有显式的限定，因此，原始类型用`Object`替换`T`。假定我们声明了一个稍有不同的类型：
+
+```java
+public class Interval<T extends Comparable & Serializable> implements Serializable {
+    private T lower;
+    private T upper;
+    ...
+    public Interval(T first, T second) {
+        if (first.compareTo(second) <= 0) { lower = first; upper = second; }
+        else { lower = second; upper = first; }
+    }
+}
+```
+
+原始类型`Interval`如下所示：
+
+```java
+public class Interval implements Serializable {
+    private Comparable lower;
+    private Comparable upper;
+    ...
+    public Interval(Comparable first, Comparable second) { ... }
+}
+```
+
+> 如果限定切换为`class Interval<T extends Serializable & Comparable>`，原始类型会用`Serializable`替换`T`，而编译器在必要时要向`Comparable`插入强制类型转换。为了提高效率，应该将标签（tagging）接口（即没有方法的接口，`Serializable`就是一个方法接口）放在限定列表的末尾。
+
+#### 3.2 转换泛型表达式
+
+编写一个泛型方法调用时，如果擦除了返回类型，编译器会插入强制类型转换。例如，对于下面这个语句序列，
+
+```java
+Pair<Employee> buddies = ...;
+Employee buddy = buddies.getFirst();
+```
+
+`getFirst()`擦除类型后的返回类型是`Object`。编译器自动插入转换到`Employee`的强制类型转换。也就是说，编译器把这个方法调用转换为两条虚拟机指令：
+
+- 对原始方法`Pair.getFirst`的调用。
+- 将返回的`Object`类型强制转换为`Employee`类型。
+
+当访问一个泛型字段时也要插入强制类型转换。假设`Pair`类的`first`字段和`second`字段都是公共的（也许这不是一种好的编程风格，但在 Java 中是合法的）。表达式
+
+`Employee buddy = buddies.first;`
+
+也会在结果字节码中插入强制类型转换。
+
+#### 3.3 转换泛型方法
+
+类型擦除也会出现在泛型方法中。程序员通常认为类似下面的泛型方法
+
+```java
+public static <T extends Comparable> T min(T[] a)
+```
+
+是整个一组方法，而擦除类型之后，只剩下一个方法：
+
+```java
+public static Comparable min(Comparable[] a)
+```
+
+注意，类型参数`T`已经被擦除了，只留下了限定类型`Comparable`。
+
+方法的擦除带来了两个复杂问题。例如：
+
+```java
+class DateInterval extends Pair<LocalDate> {
+    public void SetSecond(LocalDate second) {
+        if (second.compareTo(getFirst()) >= 0)
+            super.setSecond(second);
+    }
+    ...
+}
+```
+
+日期区间是一对`LocalDate`对象，而且我们需要覆盖这个方法来确保第二个值永远不小于第一个值。这个类擦除后变成
+
+```java
+class DateInterval extends Pair { // after erasure
+    public void setSecond(LocalDate second) { ... }
+    ...
+}
+```
+
+令人感到奇怪的是，还有另一个从`Pair`继承的`setSecond`方法，即
+
+```java
+public void setSecond(Object second)
+```
+
+这显然是一个不同的方法，因为它有一个不同类型的参数——`Object`，而不是`LocalDate`。不过，不应该不一样。考虑下面的语句序列：
+
+```java
+var interval = new DateInterval(...);
+Pair<LocalDate> pair = interval; // OK -- assignment to superclass
+pair.setSecond(aDate);
+```
+
+这里，我们希望`setSecond`调用具有多态性，会调用最合适的那个方法。由于`Pair`引用一个`DateInterval`对象，所以应该调用`DateInterval.setSecond`。问题在于类型擦除与多态发生了冲突。为了解决这个问题，编译器在`DateInterval`类中生成了一个**桥方法（bridge method）**：
+
+```java
+public void setSecond(Object second) { setSecond((LocalDate) second); }
+```
+
+请仔细跟踪以下语句的执行：
+
+```java
+pair.setSecond(aDate);
+```
+
+变量`pair`已经声明为类型`Pair<LocalDate>`，并且这个类型只有一个名为`setSecond`的方法，即`setSecond(Object)`。虚拟机在`pair`引用的对象上调用这个方法。这个对象是`DateInterval`类型，因而将会调用`DateInterval.setSecond(Object)`方法。这个方法是合成的**桥方法**。它会调用`DateInterval.setSecond(LocalDate)`，这正是我们想要的。
+
+桥方法可能会变得更奇怪。假设`DateInterval`类也覆盖了`getSecond`方法：
+
+```java
+class DateInterval extends Pair<LocalDate> {
+    public LocalDate getSecond() { return (LocalDate) super.getSecond(); }
+    ...
+}
+```
+
+在`DateInterval`类中，有两个`getSecond`方法：
+
+```java
+LocalDate getSecond() // defined in DateInterval
+Object getSecond() // overrides the method defined in Pair to call the first method
+```
+
+不能这样编写 Java 代码（两个方法有相同的参数类型是不合法的，在这里，两个方法都没有参数）。但是，在虚拟机中，会由参数类型和返回类型共同指定一个方法。因此，编译器可以为两个仅返回类型不同的方法生成字节码，虚拟机能够正确地处理这种情况。
+
+> **桥方法**不仅用于泛型类型。一个方法覆盖另一个方法时，可以指定一个更严格的返回类型，这是合法的。
+> ```java
+> public class Employee implements Cloneable {
+>   public Employee clone() throws CloneNotSupportedException { ... }
+> }
+> ```
+> `Object.clone`和`Employee.clone`方法被称为**有协变的返回类型（covariant return type）**。实际上，`Employee`类有**两个**克隆方法：
+> ```java
+> Employee clone() // defined above
+> Object clone() // synthesized bridge method, overrides Object.clone
+> ```
+> 合成的桥方法会调用新定义的方法。
+
+**总之，对于 Java 泛型的转换，需要记住以下几个事实：**
+- **虚拟机中没有泛型，只有普通的类和方法。**
+- **所有的类型参数都会替换为它们的限定类型。**
+- **会合成桥方法来保持多态。**
+- **为保持类型安全性，必要时会插入强制类型转换。**
+
+### 4. 限制与局限性
+
+太多了，挑一些应用场景多的写，这段摘自《*Java Core Ⅰ*》(11版) P338~P345。
+
+#### 4.1 不能用基本类型实例化类型参数
+
+不能用基本类型代替类型参数。因此，没有`Pair<double>`，只有`Pair<Double>`。当然，其原因就在于**类型擦除**。擦除之后，`Pair`类含有`Object`类型的字段，而`Object`不能存储`double`值。
+
+#### 4.2 运行时类型查询只适用于原始类型
+
+虚拟机中的对象总有一个特定的非泛型类型。因此，所有的类型查询只产生原始类型。例如，
+
+```java
+if (a instanceof Pair<String>) // ERROR
+```
+
+实际上仅仅测试 a 是否是任意类型的一个`Pair`。下面的测试同样如此：
+
+```java
+if (a instanceof Pair<T>) // ERROR
+```
+
+或强制类型转换：
+
+```java
+Pair<Sring> p = (Pair<String>) a; // warning -- can only test that a is a Pair
+```
+
+为提醒这一风险，如果试图查询一个对象是否属于某个泛型类型，你会得到一个编译器错误（使用`instanceof`时），或者得到一个警告（使用强制类型转换时）。
+
+同样的道理，`getClass`方法总是返回原始类型。例如：
+
+```java
+Pair<String> stringPair = ...;
+Pair<Employee> employeePair = ...;
+if (stringPair.getClass() == employeePair.getClass()) // they are equal
+```
+
+其比较结果是`true`，这是因为两次`getClass`调用都返回`Pair.class`。
+
+#### 4.3 不能创建参数化类型的数组
+
+不能实例化参数化类型的数组，例如：
+
+```java
+var table = new Pair<String>[10]; // ERROR
+```
+
+擦除之后，`table`的类型是`Pair[]`。可以把它转换为`Object[]`：
+
+```java
+Object[] objarray = table;
+```
+
+**数组会记住它的元素类型**，如果试图存储其他类型的元素，就会抛出一个`ArrayStoreException`异常：
+
+```java
+objarray[0] = "Hello"; // ERROR -- component type is Pair
+```
+
+不过对于泛型类型，擦除会使这种机制无效。以下赋值
+
+```java
+objarray[0] = new Pair<Employee>();
+```
+
+尽管能够通过数组存储的检查，但仍会导致一个类型错误。出于这个原因，不允许创建参数化类型的数组。
+
+需要说明的是，只是不允许**创建**这些数组，而**声明**类型为`Pair<String>[]`的变量仍是合法的。不过不能用`new Pair<String>[10]`初始化这个变量。
+
+> **注释**：可以声明通配类型的数组，然后进行强制类型转换：
+> ```java
+> var table = (Pair<String>[]) new Pair<?>[10];
+> ```
+> 结果将是不安全的。如果在`table[0]`中存储一个`Pair<Employee>`，然后对`table[0].getFirst()`调用一个`String`方法，会得到一个`ClassCastException`异常。
+
+> **提示**：如果需要收集参数化类型对象，简单地使用`ArrayList:ArrayList<Pair<String>>`更安全、有效。
+
+#### 4.4 Varargs警告
+
+略。（见《*Java Core Ⅰ*》(11版) P339）
+
+#### 4.5 不能实例化类型变量
+
+不能在类似`new T(...)`的表达式中使用类型变量。例如，下面的`Pair<T>`构造器就是非法的：
+
+```java
+public Pair() { first = new T(); second = new T(); } // ERROR
+```
+
+类型擦除将 T 变成`Object`，而你肯定不希望调用`new Object()`。
+
+在 Java 8 之后，最好的解决办法是让调用者提供一个构造器表达式。例如：
+
+```java
+Pair<String> p = Pair.makePair(String::new);
+```
+
+#### 4.6 不能构造泛型数组（新的提案中已经部分可以了 @date 2020/12/13）
+
+> 目前Project Valhalla的Model 3方案里，如果泛型类型参数T是原始类型（没错，T可以是原始类型了！），那么new T[size]就是可以支持的；如果T是引用类型则跟Java 5开始的规定一样，还是不能new T[size]。
+
+就像不能实例化泛型实例一样，也不能实例化数组。不过原因有所不同，毕竟数组可以填充`null`值，看上去好像可以安全地构造。不过，数组本身也带有类型，用来监控虚拟机中的数组存储。这个类型会被擦除。例如，考虑下面的例子：
+
+```java
+public static <T extends Comparable> T[] minmax(T...a) {
+    T[] mm = new T[2]; // ERROR
+    ...
+}
+```
+
+类型擦除会让这个方法总是构造`Comparable[2]`数组。
+
+如果数组仅仅作为一个类的私有字段，那么可以将这个数组的元素类型声明为擦除的类型并使用强制类型转换。例如，`ArrayList`类可以如下实现：
+
+```java
+public class ArrayList<E> {
+    private Object[] elements;
+    ...
+    @SuppressWarnings("unchecked") public E get(int n) { return (E) elements[n]; }
+    public void set(int n, E e) { elements[n] = e; } // no cast needed
+}
+```
+
+但实际的实现没有这么清晰：
+
+```java
+public class ArrayList<E> {
+    private E[] elements;
+    ...
+    public ArrayList() { elements = (E[]) new Object[10]; }
+}
+```
+
+这里，强制类型转换`E[]`是一个假象，而类型擦除使其无法察觉。
+
+#### 4.7 泛型的静态上下文中类型变量无效
+
+不能在静态字段或方法中引用类型变量。例如，下面的做法看起来很聪明，但实际上行不通：
+
+```java
+public class Singleton<T> {
+    private static T singleInstance; // ERROR
+
+    public static T getSingleInstance() { // ERROR
+        if (singleInstance == null) { construct new instance of T }
+        return singleInstance;
+    }
+}
+```
+
+如果这样可行，程序就可以声明一个`Singleton<Random>`共享一个随机数生成器，另外声明一个`Singleton<JFileChooser>`共享一个文件选择器对话框。但是，这样是行不通的。类型擦除之后，只剩下`Singleton`类，它只包含一个`singleInstance`字段。因此，禁止使用带有类型变量的静态字段和方法。
+
+#### 4.8 不能抛出或捕获泛性类的实例
+
+既不能抛出也不能捕获泛型类的对象。实际上，泛型类扩展`Throwable`甚至都是不合法的。例如，以下定义就不能正常编译：
+
+```java
+public class Problem<T> extends Exception { /*...*/ }
+// ERROR -- can't extend Throwable
+```
+
+`catch`子句中不能使用类型变量。例如，以下方法将不能编译：
+
+```java
+public static <T extends Throwable> void doWork(Class<T> t) {
+    try {
+        do work
+    } catch (T e) { // ERROR -- can't catch type variable
+        Logger.global.info(...);
+    }
+}
+```
+
+不过，在异常规范中使用类型变量是允许的。以下方法是合法的：
+
+```java
+public static <T extends Throwable> void d {
+    {
+        do work
+    }
+    catch (Throwable realCause) {
+        t.initCause(realCause);
+        throw t;
+    }
+}
+```
+
+#### 4.9 可以取消对检查型异常的检查
+
+略。（见《*Java Core Ⅰ*》(11版) P343）
+
+#### 4.10 注意擦除后的冲突
+
+略。（见《*Java Core Ⅰ*》(11版) P345）
+
+### 5. 泛型类型的继承规则
+
+考虑一个类和一个子类，如`Employee`和`Manager`。`Pair<Manager>`是`Pair<Employee>`的一个子类吗？或许人们会感到奇怪，答案是“不是”。例如，下面的代码将不能成功编译：
+
+```java
+Manager[] topHonchos = ...;
+Pair<Employee> result = ArrayAlg.minmax(topHonchos); // ERROR
+```
+
+`minmax`方法返回`Pair<Manager>`，而不是`Pair<Employee>`，并且这样的赋值是不合法的。
+
+无论 S 与 T 有什么关系，通常，`Pair<S>`与`Pair<T>`都**没有任何关系**（如下图所示）。
+
+![pair类之间没有继承关系](https://github-production-user-asset-6210df.s3.amazonaws.com/35959679/102007332-0cc18d80-3d63-11eb-99ec-a29583395d3f.jpg)
+
+这看起来是一个严格的限制，不过对于类型安全非常必要。假设允许将`Pair<Manager>`转换为`Pair<Employee>`。考虑下面的代码：
+
+```java
+var managerBuddies = new Pair<Manager>(ceo, cfo);
+Pair<Employee> employeeBuddies = managerBuddies; // illegal, but suppose it wasn't
+employeeBuddies.setFirst(lowlyEmplyee);
+```
+
+显然，最后一句是合法的。但是`employeeBuddies`和`managerBuddies`引用了**同样的对象**。现在我们会把CFO和一个普通员工组成一对，这对于`Pair<Manager>`来说应该是不可能的。
+
+> **注释**：前面看到的是泛型类型与 Java 数组之间的一个重要区别。可以将一个`Manager[]`数组赋给一个类型为`Employee[]`的变量：
+> ```java
+> Manager[] managerBuddies = { ceo, cfo };
+> Employee[] employeeBuddies = managerBuddies; // OK
+> ```
+> 不过，数组有特别的保护。如果试图将一个低级别的员工存储到`employeeBuddies[0]`，虚拟机将会抛出`ArrayStoreException`异常。
+
+总是可以将参数化类型转换为一个原始类型。例如，`Pair<Employee>`是原始类型`Pair`的一个子类型。在与遗留代码交互时，这个转换非常比要。
+
+转换成原始类型会产生类型错误！例如：
+
+```java
+var managerBuddies = new Pair<Manager>(ceo, cfo);
+Pair rawBuddies = managerBuddies; // OK
+rawBuddies.setFirst(new File("...")); // only a compile-time warning
+```
+
+当使用`getFirst`获得外来对象并赋值给`Manager`变量时，与以往一样，会抛出`ClassCastException`异常。这里失去的只是泛型程序设计提供的附加安全性。
+
+最后，**泛型类可以扩展或实现其他的泛型类**。就这一点而言，它们与普通的类没有什么区别。例如，`ArrayList<T>`类实现了`List<T>`接口。这意味着，一个`ArrayList<Manager>`可以转换为一个`List<Manager>`。但是，如前面所见，`ArrayList<Manager>`不是一个`ArrayList<Employee>`或`List<Employee>`。下图展示了它们之间的这种关系。
+
+![泛型列表类型中子类型间的关系](https://github-production-user-asset-6210df.s3.amazonaws.com/35959679/102082955-c8f78280-3e4d-11eb-9265-0ac680a39c0a.jpg)
+
+### 6. 通配符类型
+
+#### 6.1 通配符概念
+
+在通配符类型中，允许类型参数发生变化。例如，通配符类型
+
+`Pair<? extends Employee>`
+
+表示任何泛型`Pair`类型，它的类型参数是`Employee`的子类，如`Pair<Manager>`，但不是`Pair<String>`。
+
+假设要编写一个打印员工对的方法，如下所示：
+
+```java
+public static void printBuddies(Pair<Employee> p) {
+    Employee first = p.getFirst();
+    Employee second = p.getSecond();
+    System.out.println(first.getName() + " and " + second.getName() + " are buddies.");
+}
+```
+
+不能将`Pair<Manager>`传递给这个方法，这一点很有限制。不过解决的方法很简单：使用一个通配符类型：
+
+`public static void printBuddies(Pair<? extends Employee> p)`
+
+类型`Pair<Manager>`是`Pair<? extends Employee>`的子类型（如下图所示）。
+
+![使用通配符的子类型关系.jpg](https://github-production-user-asset-6210df.s3.amazonaws.com/35959679/102084002-6901db80-3e4f-11eb-96d2-e4282b7470e0.jpg)
+
+#### 6.2 通配符的超类型限定
+
+可以指定一个超类型限定（supertype bound），例如：`? super Manager`，这个通配符限制为`Manager`的所有超类型。
+
+![带有超类型限定的通配符](https://github-production-user-asset-6210df.s3.amazonaws.com/35959679/102084529-43290680-3e50-11eb-865e-6d76374f5327.jpg)
+
+直观地讲，带有超类型限定的通配符允许你写入一个泛型对象，而带有子类型限定的通配符允许你读取一个泛型对象。
+
+#### 6.3 无限定通配符
+
+还可以使用根本无限定的通配符，例如，`Pair<?>`。初看起来，这好像与原始的`Pair`类型一样。实际上，这两种类型有很大的不同。类型`Pair<?>`有以下方法：
+
+```java
+? getFirst()
+void setFirst(?)
+```
+
+`getFirst`的返回值只能赋给一个`Object`。`setFirst`方法不能被调用，甚至不能用`Object`调用。`Pair<?>`和`Pair`本质的不同在于：可以用任意`Object`对象调用原始`Pair`类的`setFirst`方法。
+
+> **注释**：可以调用`setFirst(null)`。
+
+它对于很多简单操作非常有用。例如，下面这个方法可用来测试一个对组是否包含一个`null`引用，它不需要实际的类型。
+
+```java
+public static boolean hasNulls(Pair<?> p) {
+    return p.getFirst() == null || p.getSecond() == null;
+}
+```
+
+通过将`hasNulls`转换成泛型方法，可以避免使用通配符类型：
+
+`public static <T> boolean hasNulls(Pair<T> p)`
+
+但是，带有通配符的版本可读性更好。
+
+#### 6.4 通配符捕获
+
+略。（*Java Core Ⅰ（11版）* P352）
+
+### 7. 网上一些优质回答的链接
+
+- [generic array creation ?](https://www.zhihu.com/question/393638991)
+- [java为什么不支持泛型数组？](https://www.zhihu.com/question/20928981)
+
+---
+
 # <h4 id="-1">杂记[⬆(返回目录)](#0)</h4>
 
 - Java实际上并没有多维数组，只有一维数组。多维数组被解释为“数组的数组”。**arr[i][j]** 中每个**arr[i]** 本身也是一个数组**arr[i][j]** 引用这个数组的第j个元素
@@ -1190,3 +1723,4 @@ hello inner */
 - `ArrayList`类在`new`的时候不开辟空间，在第一次添加数据的时候才开辟10个空间，`ArrayList`是线程不安全的，效率较高；`Vector`类在`new`的时候就已经开辟了10个空间，`Vector`是线程安全的，效率较低。
 - `List<E>`有序指的是**元素添加顺序**；`Set<E>`无序指的也是**元素添加顺序**；`HashSet<E>`数据顺序有序（根据hashCode值排序）及`TreeSet<E>`数据顺序有序指的是**数据顺序**；`linkedHashSet<E>`有序指的是**元素添加顺序**，而**数据顺序**无序（不明白这个的名字里为啥带个Hash...链式结构怎么搞哈希算法嘛...感觉这个东西应该设计为继承自`LinkedList<E>`更好一些...）
 - 不要在使用`Iterator`迭代器进行迭代时，调用`Collection`的`remove(xx)`方法，否则会报异常`java.util.ConcurrentModificationException`，或出现不确定行为。要使用`Iterator`的`remove()`方法去删，（以`ArrayList`为例）因为`ArrayList`中有个`modCount`属性记录数据的版本信息，`ArrayList`的内部类`Itr`的`next()`方法首先会调用`checkForComodification()`方法比对数据版本是否匹配。而`Iterator`的`remove()`方法会更新版本信息，但是`ArrayList`的`remove()`方法不会更新版本信息，导致出错。
+- `HashMap`的数组中的链表在链表长度达到8，并且数组长度大于64，链表会变为**红黑树**，以提高效率；当某`table[index]`下的红黑树结点个数少于6个，此时，如果继续删除`table[index]`下树结点，一直删除到2个以下时就会变回链表，如果继续添加映射关系到当前`map`中，如果添加导致了`map`的`table`重新`resize`，那么只要`table[index]`下的树结点仍然<=6个，那么会变回链表；`HsahMap`扩容机制是原容量的2倍，默认**装填因子**为0.75，在第一次添加前数组默认容量为16，临界值为 16 * 0.75 =12，刚`new`声明时容量为0，临界值为 0 * 0.75 = 0。
