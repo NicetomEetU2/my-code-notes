@@ -1019,7 +1019,7 @@ Output:
 Glyph() before draw()
 RoundGlyph.draw(). radius = 0
 Glyph() after draw()
-RoundGlyph.draw(). radius = 5
+RoundGlyph.RoundGlyph(). radius = 5
 */
 ```
 
