@@ -1118,7 +1118,7 @@ hello inner */
 # <h4 id="17">Java包装类一些注意的点[⬆(返回目录)](#0)</h4>
 
 - 包装类有自动装箱和自动拆箱的功能。包装类的实例对象在进行数学运算或逻辑运算时会自动拆箱（自动转为基本数据类型）进行运算，例如：`int a = integerInstance + 20;`或者`integerInstance == 20`。在用基本类型数据创建包装类对象时会自动装箱，例如：`Integer i1=127;`或者`Double d1=12.5;`。
-- `Integer`类比较特殊，它有缓存。`IntegerCache`它是`Integer`的一个静态成员内部类，`Integer`类初始化时也会将`IntegerCache`类初始化，而`IntegerCache`类会将 -127~128 这 256 个整形数据存在常量池，每次如下初始化语句`Integer i7=127;`会调用`Integer`类的`valueOf()`方法，如果赋的值在缓存范围内则返回值在常量池中的地址，否则，调用`Integer`的有参构造器，在堆内存中开辟一个空间创建新的实例对象。
+- `Integer`类比较特殊，它有缓存。`IntegerCache`它是`Integer`的一个静态成员内部类，`Integer`类初始化时也会将`IntegerCache`类初始化，而`IntegerCache`类会将 -128~127 这 256 个整形数据存在常量池，每次如下初始化语句`Integer i7=127;`会调用`Integer`类的`valueOf()`方法，如果赋的值在缓存范围内则返回值在常量池中的地址，否则，调用`Integer`的有参构造器，在堆内存中开辟一个空间创建新的实例对象。
 
     `Integer.valueOf(int i)`代码如下：
 
